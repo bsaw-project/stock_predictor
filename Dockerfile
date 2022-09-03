@@ -11,4 +11,4 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-ENTRYPOINT ["streamlit", "run", "main.py", "--server.port=8501", "--server.address=0.0.0.0"]
+ENTRYPOINT ["streamlit", "run", "main.py", "--server.port=8501"]
