@@ -1,14 +1,15 @@
 FROM python:3.9
 
-EXPOSE 8051
+RUN pip install --upgrade pip
 
 WORKDIR /app
 
-COPY requirements.txt requirements.txt
+COPY requirements.txt .
 
-RUN pip install -U pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r  requirements.txt 
+
+ENV PORT=8051
 
 COPY . .
 
-ENTRYPOINT ["streamlit", "run", "main.py", "--server.port=8501"]
+CMD streamlit run main.py --server.port=${PORT}  --browser.serverAddress="0.0.0.0"

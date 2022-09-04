@@ -11,12 +11,19 @@ import datetime
 from datetime import date, timedelta
 
 st.set_page_config(layout="wide")
+hide_menu_style = """
+<style>
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+</style>
+"""
+st.markdown(hide_menu_style, unsafe_allow_html=True)
 
 count = st_autorefresh(interval=300000, limit=100, key="tickerRefresh")
 
 col1, col2, col3 = st.columns(3)
 
-@st.cache(allow_output_mutation=True)
+@st.cache(allow_output_mutation=True, show_spinner=False)
 def load_data():
     bqclient = bigquery.Client()
 
@@ -68,10 +75,10 @@ risk_profiles = sorted(set(reco['volatile']))
 risk_profiles.append(0)
 
 # CHANGE THE IMAGE HERE
-image = Image.open('logo.jpeg')
+# image = Image.open('logo.jpeg')
 
 with st.sidebar:
-    st.image(image, width=300)
+    # st.image(image, width=300)
     with st.form(key = 'input-form'):
         customer = st.selectbox(
             'Customer',
@@ -95,6 +102,8 @@ with st.sidebar:
         )
 
         submitted1 = st.form_submit_button('Submit')
+
+###################################################################################################################################################
 
 if customer in data['Client_ID'].unique():
     col1.subheader(customer +'(Current Pfolio)')
@@ -279,7 +288,7 @@ if customer in reco['Client_ID'].unique():
             "Volatile": "volatile"
         }, inplace=True)
 
-        newDF = pd.concat([customer_risk_data,new_customer_data])
+        newDF = pd.concat([customer_risk_data, new_customer_data])
         tickers = newDF.Ticker
         df_stock_data = yf.download(tickers.to_list(), datetime.datetime.now(), datetime.datetime.now(), auto_adjust=True)['Close']
         df_stock_data = df_stock_data.reset_index()
@@ -298,44 +307,49 @@ if customer in reco['Client_ID'].unique():
         st.markdown(hide_table_row_index, unsafe_allow_html=True)
         #st.table(newDF)
         st.table(newDF[['Ticker', 'Trend', 'Predicted Price', 'volatile','Sentiment','Recommendation']])
+        
+        ################################################################################################
+        @st.cache(suppress_st_warning=True, show_spinner=False)
+        def real_time():
+            real_close = list()
+            for ticker in newDF['Ticker']:
+                today = date.today()
 
-        ################################################################################################
-        # REAL TIME STOCK PRICE DATA
-        ################################################################################################
+                d1 = today.strftime("%Y-%m-%d")
+                end_date = d1
+                d2 = date.today() - timedelta(days=1)
+                d2 = d2.strftime("%Y-%m-%d")
+                start_date = d2
+
+                a = ticker
+                df = yf.download(a, start_date, end_date)['Close'][0]
+                real_close.append(df)
+            return real_close
+                # st.write(df)
+                #data2 = web.DataReader(name=a, data_source='yahoo', start=start_date, end=end_date)
+                #close_today = data2["Close"].tolist()[0]
+
+                #col.metric(label=a, value = f'$ {round(close_today, 2)}')
+        ##############################################################################################
         st.markdown("""---""")
         st.markdown("<h1 style='text-align: center;'>Real-time Stock Price Data</h1>", unsafe_allow_html=True)
         ncol = len(list(newDF['Ticker']))
         wcol = len(list(newDF['Ticker']))
         cols = st.columns(ncol)
 
-        for i,ticker in enumerate(newDF['Ticker']):
+        real_close = real_time()
+        def color_ticker(val):
+            if val == 'Down':
+                color = "#ff0303"
+            else:
+                color = "#33ff33"
+            return f'color: {color}'
+
+        for i, (ticker, trend) in enumerate(zip(newDF['Ticker'], newDF['Trend'])):
             col = cols[i%wcol]
-
-            today = date.today()
-
-            d1 = today.strftime("%Y/%m/%d")
-            end_date1 = d1
-            d2 = date.today() - timedelta(days=1)
-            d2 = d2.strftime("%Y/%m/%d")
-            start_date1 = d2
-
-            d1 = date.today() - timedelta(days=1)
-            end_date2 = d1
-            d2 = date.today() - timedelta(days=2)
-            d2 = d2.strftime("%Y/%m/%d")
-            start_date2 = d2
-
-            a = ticker
-            data1 = web.DataReader(name=a, data_source='yahoo', start=start_date1, end=end_date1)
-            close_today1 = data1["Close"].tolist()[0]
-
-            data2 = web.DataReader(name=a, data_source='yahoo', start=start_date2, end=end_date2)
-            close_today2 = data2["Close"].tolist()[0]
-
-            col.metric(label=a, value = f'$ {round(close_today1, 2)}', delta = f'{round(close_today1-close_today2, 2)} %')
+            col.markdown(f'<p style="{color_ticker(trend)};font-size:24px;border-radius:2%;">{ticker}</p>', unsafe_allow_html=True)
+            col.markdown(f'$ {round(real_close[i],2)}')
         st.markdown("""---""")
-        ##############################################################################################
-
         recommendation(newDF)
     else:
         st.warning(f"There are no stocks recommended !!!")
